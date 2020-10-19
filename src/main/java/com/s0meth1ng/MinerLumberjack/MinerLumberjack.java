@@ -84,13 +84,28 @@ public class MinerLumberjack
 
     @SubscribeEvent
     public void onBreakingBlock(PlayerEvent.BreakSpeed breakSpeed) {
-
+        boolean silkTouch = EnchantmentHelper.getEnchantments(breakSpeed.getPlayer().getHeldItemMainhand()).containsKey(Enchantments.SILK_TOUCH);
+        Item tool = breakSpeed.getPlayer().getHeldItemMainhand().getItem();
+        Block mainBlock = breakSpeed.getState().getBlock();
+        if (
+                !silkTouch &&
+                (tool == Items.IRON_PICKAXE) &&
+                (mainBlock == Blocks.COAL_ORE)
+        )
+        {
+            breakSpeed.setNewSpeed(breakSpeed.getOriginalSpeed() / getCollidedBlocks(breakSpeed.getEntity().world, breakSpeed.getPos()).size());
+        } else {
+            breakSpeed.setNewSpeed(breakSpeed.getOriginalSpeed());
+        }
     }
 
     @SubscribeEvent
     public void onBlockBroken(BlockEvent.BreakEvent event) {
-        if (event.getPlayer().getHeldItemMainhand().getItem() == Items.IRON_PICKAXE) {
-            tryMineOre(event);
+        boolean silkTouch = EnchantmentHelper.getEnchantments(event.getPlayer().getHeldItemMainhand()).containsKey(Enchantments.SILK_TOUCH);
+        if (!silkTouch) {
+            if (event.getPlayer().getHeldItemMainhand().getItem() == Items.IRON_PICKAXE) {
+                tryMineOre(event);
+            }
         }
     }
 
