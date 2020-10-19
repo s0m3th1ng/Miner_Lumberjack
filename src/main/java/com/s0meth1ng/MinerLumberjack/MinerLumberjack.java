@@ -17,12 +17,10 @@ import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.InterModComms;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
-import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
+import net.minecraftforge.fml.event.lifecycle.*;
 import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,6 +37,7 @@ public class MinerLumberjack
     public MinerLumberjack() {
         // Register the setup method for modloading
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::loadComplete);
         // Register the enqueueIMC method for modloading
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::enqueueIMC);
         // Register the processIMC method for modloading
@@ -46,6 +45,7 @@ public class MinerLumberjack
         // Register the doClientStuff method for modloading
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
 
+        Config.loadConfig(Config.config, FMLPaths.CONFIGDIR.get().resolve("Miner_Lumberjack.toml"));
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
     }
@@ -55,6 +55,10 @@ public class MinerLumberjack
         // some preinit code
         LOGGER.info("HELLO FROM PREINIT");
         LOGGER.info("DIRT BLOCK >> {}", Blocks.DIRT.getRegistryName());
+    }
+
+    private void loadComplete(final FMLLoadCompleteEvent event) {
+        Config.setValues();
     }
 
     private void doClientStuff(final FMLClientSetupEvent event) {
@@ -84,13 +88,15 @@ public class MinerLumberjack
 
     @SubscribeEvent
     public void onBreakingBlock(PlayerEvent.BreakSpeed breakSpeed) {
+        boolean canHarvest = !Config.fairplay || breakSpeed.getPlayer().canHarvestBlock(breakSpeed.getState());
         boolean silkTouch = EnchantmentHelper.getEnchantments(breakSpeed.getPlayer().getHeldItemMainhand()).containsKey(Enchantments.SILK_TOUCH);
         Item tool = breakSpeed.getPlayer().getHeldItemMainhand().getItem();
         Block mainBlock = breakSpeed.getState().getBlock();
         if (
+                canHarvest &&
                 !silkTouch &&
-                (tool == Items.IRON_PICKAXE) &&
-                (mainBlock == Blocks.COAL_ORE)
+                (Config.pickaxes.contains(tool)) &&
+                (Config.ores.contains(mainBlock))
         )
         {
             breakSpeed.setNewSpeed(breakSpeed.getOriginalSpeed() / getCollidedBlocks(breakSpeed.getEntity().world, breakSpeed.getPos()).size());
@@ -101,9 +107,11 @@ public class MinerLumberjack
 
     @SubscribeEvent
     public void onBlockBroken(BlockEvent.BreakEvent event) {
+        Item tool = event.getPlayer().getHeldItemMainhand().getItem();
+        boolean canHarvest = !Config.fairplay || event.getPlayer().canHarvestBlock(event.getState());
         boolean silkTouch = EnchantmentHelper.getEnchantments(event.getPlayer().getHeldItemMainhand()).containsKey(Enchantments.SILK_TOUCH);
-        if (!silkTouch) {
-            if (event.getPlayer().getHeldItemMainhand().getItem() == Items.IRON_PICKAXE) {
+        if (!silkTouch && canHarvest) {
+            if (Config.pickaxes.contains(tool)) {
                 tryMineOre(event);
             }
         }
@@ -111,7 +119,7 @@ public class MinerLumberjack
 
     private void tryMineOre(BlockEvent.BreakEvent event) {
         Block mainBlock = event.getWorld().getBlockState(event.getPos()).getBlock();
-        if (mainBlock == Blocks.COAL_ORE) {
+        if (Config.ores.contains(mainBlock)) {
             destroyCollidedBlocks((World) event.getWorld(), event.getPlayer(), event.getPos());
         }
     }
